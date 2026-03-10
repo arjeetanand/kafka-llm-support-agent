@@ -1,15 +1,58 @@
-# kafka-crash-course
+# Kafka LLM Support Agent
 
-### Install confluent-kafka dependency
-`pip3 install confluent-kafka`
+This repository contains a real-time, event-driven Customer Support AI Agent. It uses **Kafka** for message streaming and **LangGraph** (powered by local **Ollama** models) to analyze, categorize, and auto-reply to customer support tickets.
 
-### Validate that the topic was created in kafka container
-`docker exec -it kafka kafka-topics --list --bootstrap-server localhost:9092`
+## Architecture
 
-### Describe that topic and see its partitions
-`docker exec -it kafka kafka-topics --bootstrap-server localhost:9092 --describe --topic new_orders`
+1. **Producer (`producer.py`)**: Simulates a customer support portal. Streams custom JSON support tickets (e.g., billing disputes, technical issues, praise) into a Kafka `support-tickets` topic.
+2. **Consumer / Agent (`support_agent.py`)**: A LangGraph application that subscribes to the Kafka topic. 
+3. **LLM Engine**: When a ticket arrives, the LangGraph node uses a local `llama3` model via Ollama to determine the Sentiment and Category of the ticket, and drafts a categorized, context-aware auto-reply.
 
-#### View all events in a topic
-`docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic orders --from-beginning`
+## Prerequisites
+* Python 3.10+
+* Local Kafka Broker running (`localhost:9092`)
+* [Ollama](https://ollama.com/) installed and running locally.
 
+## Setup Instructions
 
+1. **Start Ollama & Pull the Model**:
+   ```bash
+   ollama serve
+   ollama pull llama3
+   ```
+
+2. **Run the Consumer (Agent)**:
+   In one terminal, start the LangGraph agent to listen for tickets:
+   ```bash
+   python support_agent.py
+   ```
+
+3. **Run the Producer**:
+   In a separate terminal, stream mock tickets into Kafka:
+   ```bash
+   python producer.py
+   ```
+
+---
+
+## 📚 Step-By-Step Learning Log
+*A version history of how this project was built for learning reference.*
+
+### Version 1: Basic Kafka Setup 
+* **Goal**: Establish a basic publisher-subscriber architecture.
+* **Code**: `kafka-tuto.py` and initial versions of the `producer`/`tracker`.
+* **What I Did**: Ran a local Kafka broker using Docker compose. Built a basic Python producer to send simple strings (e.g., "apple orders") to an `orders` topic, and a basic consumer to read them.
+
+### Version 2: Defining the Business Use Case
+* **Goal**: Upgrade the generic "order" stream into a real-world scenario.
+* **Code**: Modified `producer.py`.
+* **What I Did**: Changed the topic from `orders` to `support-tickets`. Updated the payload to JSON dictionaries containing a `ticket_id`, `customer_name`, and complex `issue_text`. Simulated a variety of ticket types (angry billing, broken tech, happy reviews).
+
+### Version 3: Integrating the LLM (LangGraph + Ollama)
+* **Goal**: Dynamically process the text inside the Kafka stream using AI.
+* **Code**: Created `support_agent.py`.
+* **What I Did**: 
+  1. Built a LangGraph state machine with an `analyze_ticket` node and a `process_action` node.
+  2. Integrated `langchain_ollama` to securely and locally use LLMs without paying API fees.
+  3. Replaced the generic consumer logic with code that feeds the Kafka message payload directly into the LangGraph state. 
+  4. Prompt-engineered the LLM to strictly return only the Sentiment and Category, which the second node uses to generate a mock response.
