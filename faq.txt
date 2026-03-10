@@ -1,0 +1,12 @@
+# Company Support Knowledge Base
+
+## Billing and Refunds
+- Refund Policy: We offer full refunds for extra charges or accidental subscriptions if requested within 14 days of the charge. We do not offer refunds for used digital products.
+- Double Charges: If a user is charged twice for their subscription this month, immediately apologize and assure them the duplicate charge will be reversed within 3-5 business days. No need to escalate to finance, it's an automated process.
+
+## Technical Support
+- App Crashing on Update: We are aware that the new version 2.4 update completely broke the app on some Android phones. A hotfix (version 2.4.1) is scheduled to be released within 24 hours. Instruct the user to wait for the automatic update or use the web version in the meantime.
+- Login Issues: If a user cannot log in, instruct them to clear their browser cache or app data and reset their password using the "Forgot Password" link on the login screen.
+
+## General
+- Praise/Feedback: If a user shares a positive experience or praise for a support agent, thank them enthusiastically and let them know their feedback will be passed along to the team. Offer them a 10% discount code "HAPPY10" for their next purchase as a token of appreciation.

@@ -1,53 +1,75 @@
-# Kafka LLM Support Agent
+# Kafka LLM Support Agent 🚀
 
-This repository contains a real-time, event-driven Customer Support AI Agent. It uses **Kafka** for message streaming and **LangGraph** (powered by local **Ollama** models) to analyze, categorize, and auto-reply to customer support tickets.
+This repository contains a real-time, event-driven Customer Support AI Agent. It uses **Kafka** for message streaming, **LangGraph** for advanced workflow orchestration, and local **Ollama** models for RAG-powered, agentic decision making.
 
-## Architecture
+## 🏗️ Architecture
 
-1. **Producer (`producer.py`)**: Simulates a customer support portal. Streams custom JSON support tickets (e.g., billing disputes, technical issues, praise) into a Kafka `support-tickets` topic.
-2. **Consumer / Agent (`support_agent.py`)**: A LangGraph application that subscribes to the Kafka topic. 
-3. **LLM Engine**: When a ticket arrives, the LangGraph node uses a local `llama3` model via Ollama to determine the Sentiment and Category of the ticket, and drafts a categorized, context-aware auto-reply.
+```mermaid
+graph TD
+    A[producer.py] -->|support-tickets| B(Kafka Broker)
+    B --> C[support_agent.py]
+    C -->|RAG| D[(FAISS Knowledge Base)]
+    C -->|Tool Use| E[Mock API Tools]
+    C -->|Analysis| F[llama3.2]
+    C -->|processed-tickets| G(Kafka Broker)
+    G --> H[dashboard.py]
+    H --> I[Streamlit Web UI]
+```
 
-## Prerequisites
-* Python 3.10+
-* Local Kafka Broker running (`localhost:9092`)
-* [Ollama](https://ollama.com/) installed and running locally.
+1. **Producer (`producer.py`)**: Streams custom JSON support tickets (Billing, Tech, General) into the `support-tickets` Kafka topic.
+2. **Support Agent (`support_agent.py`)**: A LangGraph application that:
+    - Analyzes Sentiment and Category.
+    - Retrieves context from a FAISS vector store (**RAG**).
+    - Executes **Tools** (Refunds, Escalations) based on policy.
+    - Publishes processed results to a new `processed-tickets` topic.
+3. **Live Dashboard (`dashboard.py`)**: A Streamlit interface that visualizes the AI's real-time decisions directly from the Kafka stream.
 
-## Setup Instructions
+## 🛠️ Tech Stack
+- **Streaming**: Apache Kafka (Docker)
+- **Orchestration**: LangGraph
+- **LLM / Embeddings**: Ollama (`llama3.2`, `nomic-embed-text`)
+- **Vector DB**: FAISS
+- **UI**: Streamlit
 
-1. **Start Ollama & Pull the Model**:
+## 🚀 Setup Instructions
+
+1. **Start Kafka**:
    ```bash
-   ollama serve
-   ollama pull llama3
+   docker-compose up -d
    ```
 
-2. **Run the Consumer (Agent)**:
-   In one terminal, start the LangGraph agent to listen for tickets:
+2. **Prepare the Knowledge Base (RAG)**:
+   ```bash
+   python build_vectorstore.py
+   ```
+
+3. **Run the Agent**:
    ```bash
    python support_agent.py
    ```
 
-3. **Run the Producer**:
-   In a separate terminal, stream mock tickets into Kafka:
+4. **Launch the Dashboard**:
+   ```bash
+   streamlit run dashboard.py
+   ```
+
+5. **Send Tickets**:
    ```bash
    python producer.py
    ```
 
 ---
 
-## 📚 Step-By-Step Learning Log
-*A version history of how this project was built for learning reference.*
+## 📚 Evolution Log
 
-### Version 1: Defining the Business Use Case
-* **Goal**: Upgrade the generic "order" stream into a real-world scenario.
-* **Code**: Modified `producer.py`.
-* **What I Did**: Changed the topic from `orders` to `support-tickets`. Updated the payload to JSON dictionaries containing a `ticket_id`, `customer_name`, and complex `issue_text`. Simulated a variety of ticket types (angry billing, broken tech, happy reviews).
+### Phase 1: Retrieval-Augmented Generation (RAG)
+* **What I Did**: Connected the agent to a local Knowledge Base (`faq.txt`).
+* **Technical details**: Used `OllamaEmbeddings` and `FAISS` to index company policies. Added a `retrieve_context` node to the LangGraph to ensure the AI bases its decisions on ground-truth company rules.
 
-### Version 2: Integrating the LLM (LangGraph + Ollama)
-* **Goal**: Dynamically process the text inside the Kafka stream using AI.
-* **Code**: Created `support_agent.py`.
-* **What I Did**: 
-  1. Built a LangGraph state machine with an `analyze_ticket` node and a `process_action` node.
-  2. Integrated `langchain_ollama` to securely and locally use LLMs without paying API fees.
-  3. Replaced the generic consumer logic with code that feeds the Kafka message payload directly into the LangGraph state. 
-  4. Prompt-engineered the LLM to strictly return only the Sentiment and Category, which the second node uses to generate a mock response.
+### Phase 2: Agentic Tool Use (Function Calling)
+* **What I Did**: Empowered the agent to *act*, not just talk.
+* **Technical details**: Defined `@tool` decorated functions for `refund_customer` and `escalate_to_human`. Refactored the LangGraph with `ToolNode` and deterministic routing to bypass the reasoning limitations of small local models (3B).
+
+### Phase 3: Live Real-Time Dashboard
+* **What I Did**: Moved AI logs from the terminal to a professional web UI.
+* **Technical details**: Built a Streamlit app that consumes from a secondary `processed-tickets` Kafka topic. Used a polled consumer architecture to safely update `st.session_state` and render beautiful cards for each AI decision.
