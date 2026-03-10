@@ -2,86 +2,104 @@ import streamlit as st
 from confluent_kafka import Consumer
 import json
 import time
+from database import get_all_tickets, get_stats
 
 # --- Page Configuration ---
 st.set_page_config(page_title="Support Agent Dashboard", page_icon="🤖", layout="wide")
 
-st.title("🤖 Live AI Support Agent Dashboard")
-st.markdown("Watching the `processed-tickets` Kafka topic for real-time agent decisions.")
+st.title("🤖 AI Support Agent Dashboard")
 
-# Refresh Controls
-col_a, col_b = st.columns([1, 4])
-with col_a:
-    auto_refresh = st.checkbox("🔄 Auto-Refresh (3s)", value=False)
-with col_b:
-    if st.button("Manual Refresh"):
-        st.rerun()
+# --- Sidebar Controls ---
+st.sidebar.title("Dashboard Settings")
+view_mode = st.sidebar.radio("View Mode", ["Live Kafka Stream", "Historical Database"])
 
-# Initialize session state to store tickets
-if "tickets" not in st.session_state:
-    st.session_state.tickets = []
+if view_mode == "Live Kafka Stream":
+    st.markdown("Watching the `processed-tickets` Kafka topic for real-time agent decisions.")
+    
+    # Refresh Controls
+    col_a, col_b = st.columns([1, 4])
+    with col_a:
+        auto_refresh = st.checkbox("🔄 Auto-Refresh (3s)", value=True)
+    with col_b:
+        if st.button("Manual Refresh"):
+            st.rerun()
 
-# --- Kafka Consumer Setup ---
-@st.cache_resource
-def get_kafka_consumer():
-    conf = {
-        'bootstrap.servers': 'localhost:9092',
-        'group.id': 'streamlit-dashboard-group-static',
-        'auto.offset.reset': 'earliest'
-    }
-    c = Consumer(conf)
-    c.subscribe(['processed-tickets'])
-    return c
+    # Initialize session state to store tickets
+    if "live_tickets" not in st.session_state:
+        st.session_state.live_tickets = []
 
-consumer = get_kafka_consumer()
+    # --- Kafka Consumer Setup ---
+    @st.cache_resource
+    def get_kafka_consumer():
+        conf = {
+            'bootstrap.servers': 'localhost:9092',
+            'group.id': 'streamlit-dashboard-group-static',
+            'auto.offset.reset': 'earliest'
+        }
+        c = Consumer(conf)
+        c.subscribe(['processed-tickets'])
+        return c
 
-# Function to poll Kafka synchronously
-def poll_kafka():
-    # Poll up to 10 messages per rerun to prevent blocking the UI
-    for _ in range(10):
-        msg = consumer.poll(0.1)
-        if msg is None:
-            break
-        if msg.error():
-            continue
-            
-        try:
-            val = msg.value().decode('utf-8')
-            ticket_data = json.loads(val)
-            # Add new ticket to the beginning of the list, preventing duplicates
-            if not any(t.get("ticket_id") == ticket_data.get("ticket_id") for t in st.session_state.tickets):
-                st.session_state.tickets.insert(0, ticket_data)
-        except Exception as e:
-            pass
+    consumer = get_kafka_consumer()
 
-# Fetch new messages
-poll_kafka()
+    # Function to poll Kafka synchronously
+    def poll_kafka():
+        for _ in range(10):
+            msg = consumer.poll(0.1)
+            if msg is None:
+                break
+            if msg.error():
+                continue
+                
+            try:
+                val = msg.value().decode('utf-8')
+                ticket_data = json.loads(val)
+                if not any(t.get("ticket_id") == ticket_data.get("ticket_id") for t in st.session_state.live_tickets):
+                    st.session_state.live_tickets.insert(0, ticket_data)
+            except Exception as e:
+                pass
+
+    poll_kafka()
+    display_tickets = st.session_state.live_tickets
+    
+    # Live Metrics (In-memory)
+    total_count = len(display_tickets)
+    actions_count = sum(1 for t in display_tickets if t.get("tools_executed"))
+    negatives_count = sum(1 for t in display_tickets if "negative" in str(t.get("sentiment", "")).lower())
+
+else:
+    st.markdown("Viewing persisted ticket history from the local SQLite database.")
+    display_tickets = get_all_tickets(limit=100)
+    
+    # Persistent Metrics (From DB)
+    stats = get_stats()
+    total_count = stats["total"]
+    actions_count = stats["actions"]
+    negatives_count = stats["negatives"]
+    auto_refresh = False
 
 # --- UI Rendering ---
-if not st.session_state.tickets:
-    st.info("Waiting for tickets... (Ollama might still be thinking in the background terminal!)")
+
+if not display_tickets:
+    st.info("No tickets found yet. Run `db_worker.py`, `support_agent.py`, and `producer.py`.")
 else:
     # Metrics Row
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Processed", len(st.session_state.tickets))
+        st.metric("Total Tickets", total_count)
     with col2:
-        refunds = sum(1 for t in st.session_state.tickets if "refund" in str(t.get("draft_reply", "")).lower() or t.get("tools_executed"))
-        st.metric("Actions Taken", refunds)
+        st.metric("Actions Taken", actions_count)
     with col3:
-        negatives = sum(1 for t in st.session_state.tickets if "negative" in str(t.get("sentiment", "")).lower())
-        st.metric("Negative Sentiment", negatives)
+        st.metric("Negative Sentiment", negatives_count)
 
     st.markdown("---")
     
     # Draw each ticket as a beautiful card
-    for ticket in st.session_state.tickets:
+    for ticket in display_tickets:
         with st.container():
-            # Header row
             c1, c2, c3 = st.columns([2, 1, 1])
             c1.subheader(f"Ticket from {ticket.get('customer_name', 'Unknown')}")
             
-            # Status badges
             sentiment = ticket.get("sentiment", "Unknown")
             category = ticket.get("category", "Unknown")
             
@@ -94,15 +112,16 @@ else:
                 
             c3.info(f"Category: {category}")
             
-            # Content
             st.markdown("**Original Issue:**")
             st.write(f"> {ticket.get('issue_text', '')}")
             
-            st.markdown("**AI Response:**")
+            # Routing Info
+            dept_topic = f"{ticket.get('category', 'unknown').lower()}-dept"
+            st.markdown(f"📍 **Routed To:** `{dept_topic}`")
             
-            tools_used = ticket.get("tools_executed", False)
-            if tools_used:
-                st.success("⚡ **Action Taken:** The LangGraph Agent executed an external API Tool to resolve this.")
+            st.markdown("**AI Response:**")
+            if ticket.get("tools_executed"):
+                st.success("⚡ **Action Taken:** Agent executed an external API Tool.")
             
             st.code(ticket.get("draft_reply", ""), language="markdown")
             st.markdown("---")

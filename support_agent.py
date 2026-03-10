@@ -161,7 +161,7 @@ agent = builder.compile()
 def start_kafka_consumer():
     consumer_config = {
         "bootstrap.servers": "localhost:9092",
-        "group.id": "support-agent-group-v3",
+        "group.id": "support-agent-group-v4",
         "auto.offset.reset": "earliest"
     }
     
@@ -223,8 +223,17 @@ def start_kafka_consumer():
                 "draft_reply": final_state["draft_reply"],
                 "tools_executed": tools_called
             }
+            
+            # --- 4. Multi-Topic Routing ---
+            # Send to the main processed topic for the dashboard
             producer.produce("processed-tickets", value=json.dumps(processed_payload).encode("utf-8"))
+            
+            # Send to a specific department topic (e.g., billing-dept, technical-dept)
+            dept_topic = f"{final_state['category'].lower()}-dept"
+            producer.produce(dept_topic, value=json.dumps(processed_payload).encode("utf-8"))
+            
             producer.flush()
+            print(f"[ROUTED] Sent to departments: processed-tickets, {dept_topic}")
             
     except KeyboardInterrupt:
         print("\n[STOP] Stopping agent")

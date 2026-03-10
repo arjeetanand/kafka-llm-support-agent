@@ -13,6 +13,8 @@ graph TD
     C -->|Analysis| F[llama3.2]
     C -->|processed-tickets| G(Kafka Broker)
     G --> H[dashboard.py]
+    G --> J[db_worker.py]
+    J --> K[(SQLite Database)]
     H --> I[Streamlit Web UI]
 ```
 
@@ -22,7 +24,8 @@ graph TD
     - Retrieves context from a FAISS vector store (**RAG**).
     - Executes **Tools** (Refunds, Escalations) based on policy.
     - Publishes processed results to a new `processed-tickets` topic.
-3. **Live Dashboard (`dashboard.py`)**: A Streamlit interface that visualizes the AI's real-time decisions directly from the Kafka stream.
+3. **Database Worker (`db_worker.py`)**: A dedicated Kafka consumer that listens to processed tickets and writes them to a local **SQLite** database (`support_tickets.db`).
+4. **Live Dashboard (`dashboard.py`)**: A Streamlit interface that visualizes real-time decisions from Kafka and historical data from the Database.
 
 ## 🛠️ Tech Stack
 - **Streaming**: Apache Kafka (Docker)
@@ -73,3 +76,7 @@ graph TD
 ### Phase 3: Live Real-Time Dashboard
 * **What I Did**: Moved AI logs from the terminal to a professional web UI.
 * **Technical details**: Built a Streamlit app that consumes from a secondary `processed-tickets` Kafka topic. Used a polled consumer architecture to safely update `st.session_state` and render beautiful cards for each AI decision.
+
+### Phase 4: Database Persistence
+* **What I Did**: Added a historical storage layer to prevent data loss.
+* **Technical details**: Implemented a standalone `db_worker.py` Kafka consumer that persists every AI decision into a local **SQLite** database. Updated the dashboard to allow switching between "Live" and "Historical" views with persistent lifetime metrics.
