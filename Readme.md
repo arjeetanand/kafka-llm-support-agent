@@ -38,17 +38,12 @@ This repository contains a real-time, event-driven Customer Support AI Agent. It
 ## 📚 Step-By-Step Learning Log
 *A version history of how this project was built for learning reference.*
 
-### Version 1: Basic Kafka Setup 
-* **Goal**: Establish a basic publisher-subscriber architecture.
-* **Code**: `kafka-tuto.py` and initial versions of the `producer`/`tracker`.
-* **What I Did**: Ran a local Kafka broker using Docker compose. Built a basic Python producer to send simple strings (e.g., "apple orders") to an `orders` topic, and a basic consumer to read them.
-
-### Version 2: Defining the Business Use Case
+### Version 1: Defining the Business Use Case
 * **Goal**: Upgrade the generic "order" stream into a real-world scenario.
 * **Code**: Modified `producer.py`.
 * **What I Did**: Changed the topic from `orders` to `support-tickets`. Updated the payload to JSON dictionaries containing a `ticket_id`, `customer_name`, and complex `issue_text`. Simulated a variety of ticket types (angry billing, broken tech, happy reviews).
 
-### Version 3: Integrating the LLM (LangGraph + Ollama)
+### Version 2: Integrating the LLM (LangGraph + Ollama)
 * **Goal**: Dynamically process the text inside the Kafka stream using AI.
 * **Code**: Created `support_agent.py`.
 * **What I Did**: 
